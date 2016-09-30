@@ -75,6 +75,7 @@ def test_create_discrete_node_2():
 		sim_vals[i] = x1.simulate({ "X2": [0], "X3": [1] })
 	print np.mean(sim_vals)
 	
+	assert x1.prob({ "X1":1,"X2":1,"X3":0 }) == np.log(0.7)
 
 def test_dfs_1():
 	network = bn.BayesianNetwork()
@@ -124,6 +125,8 @@ def test_forward_sample_1():
 	,columns=['prob','X2'])
 	)
 	
+	assert x2.prob({ "X2": 1}) == np.log(0.9)
+	
 	x3.set_params( 
 	pd.DataFrame(
 	[
@@ -133,8 +136,12 @@ def test_forward_sample_1():
 	,columns=['prob','X3'])
 	)
 	
+	assert x3.prob({ "X3": 0}) == np.log(0.8)
+
 	network.set_nodes([x1,x2,x3])
 	network.print_network()
+	np.testing.assert_almost_equal(network.joint_prob({ "X1": 'y', "X2":0, "X3":0 },log=False),  (0.1 * 0.8 * 0.1))
+	
 	res = network.forward_sample(200)
 	print res
 	#print "Mean X1 {0}".format(np.mean(res["X1"]))

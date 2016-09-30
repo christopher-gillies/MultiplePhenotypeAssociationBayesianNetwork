@@ -120,10 +120,19 @@ class BayesianNetwork:
 		assert type(data) == pd.DataFrame
 		for node in self.nodes:
 			node.mle(data)
+	
+	def	joint_prob(self,dict_vals,log=True):
+		assert self.nodes is not None
+		log_joint = 0.0
+		for node in self.nodes:
+			print "joint " + str(node)
+			log_joint += node.prob(dict_vals,log=True)
 		
-		
-	#set params Node key
-		
+		if log:
+			return log_joint
+		else:
+			return np.exp(log_joint)
+
 #Note that the underscore makes this class private
 class _Node:
 	
@@ -173,6 +182,9 @@ class _Node:
 		
 	def mle(self):
 		raise Exception("Not supported")
+	
+	def prob(self,log=True):
+		raise Exception("Not supported")
 			
 class DiscreteNode(_Node):
 	def __init__(self,name,values):
@@ -216,6 +228,43 @@ class DiscreteNode(_Node):
 			np.testing.assert_almost_equal(params_df['prob'].sum(),1.0)		
 		_Node.set_params(self,params_df)
 		assert isinstance(self.params,pd.DataFrame)
+	
+	def prob(self,dict_vals,log=True):
+		#make sure data has been input correctly
+		assert self.params is not None
+		assert dict_vals.has_key(self.name)
+		for parent_name in self.parent_names.keys():
+			assert dict_vals.has_key(parent_name)
+		
+		#find the matching probability
+		prob = None
+		for index,row in self.params.iterrows():
+			keep = True
+			value = dict_vals[self.name]
+			if row[self.name] != value:
+				keep = False
+			
+			if keep:	
+				for variable in self.parent_names.keys():
+					value = dict_vals[variable]
+					if row[variable] != value:
+						#print "Row" + str(row)
+						#print variable
+						#print value
+						keep = False
+						break
+			
+			if keep:
+				prob = row["prob"]
+				#we found a match so break
+				break
+		
+		assert prob is not None
+		
+		if log:
+			return np.log(prob)
+		else:
+			return prob	
 	
 	def mle(self,data):
 		assert type(data) is pd.DataFrame
