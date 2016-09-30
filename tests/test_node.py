@@ -69,9 +69,10 @@ def test_create_discrete_node_2():
 	x1.set_params(params)
 	assert isinstance(x1.params,pd.DataFrame)
 	
-	sim_vals = []
-	for i in range(0,100):
-		sim_vals.append(x1.simulate({ "X2": [0], "X3": [1] }))
+	n = 100
+	sim_vals = np.zeros(n)
+	for i in range(0,n):
+		sim_vals[i] = x1.simulate({ "X2": [0], "X3": [1] })
 	print np.mean(sim_vals)
 	
 
@@ -95,21 +96,21 @@ def test_dfs_1():
 def test_forward_sample_1():
 	print "Testing forward sample"
 	network = bn.BayesianNetwork()
-	x1 = bn.DiscreteNode("X1",[0,1])
+	x1 = bn.DiscreteNode("X1",['n','y'])
 	x2 = bn.DiscreteNode("X2",[0,1])
 	x3 = bn.DiscreteNode("X3",[0,1])
 	x1.add_parent(x2)
 	x1.add_parent(x3)
 	params = pd.DataFrame(
 	[
-		[0.1,0,0,0],
-		[0.9,1,0,0],
-		[0.2,0,0,1],
-		[0.8,1,0,1],
-		[0.3,0,1,0],
-		[0.7,1,1,0],
-		[0.4,0,1,1],
-		[0.6,1,1,1]
+		[0.1,'y',0,0],
+		[0.9,'n',0,0],
+		[0.2,'y',0,1],
+		[0.8,'n',0,1],
+		[0.3,'y',1,0],
+		[0.7,'n',1,0],
+		[0.4,'y',1,1],
+		[0.6,'n',1,1]
 	],columns=['prob','X1','X2','X3'])
 	x1.set_params(params)
 	assert isinstance(x1.params,pd.DataFrame)
@@ -117,8 +118,8 @@ def test_forward_sample_1():
 	x2.set_params( 
 	pd.DataFrame(
 	[
-		[0.5,0],
-		[0.5,1]
+		[0.1,0],
+		[0.9,1]
 	]
 	,columns=['prob','X2'])
 	)
@@ -126,12 +127,25 @@ def test_forward_sample_1():
 	x3.set_params( 
 	pd.DataFrame(
 	[
-		[0.5,0],
-		[0.5,1]
+		[0.8,0],
+		[0.2,1]
 	]
 	,columns=['prob','X3'])
 	)
 	
 	network.set_nodes([x1,x2,x3])
 	network.print_network()
-	print network.forward_sample()
+	res = network.forward_sample(200)
+	print res
+	#print "Mean X1 {0}".format(np.mean(res["X1"]))
+	print "Mean X2 {0}".format(np.mean(res["X2"]))
+	print "Mean X3 {0}".format(np.mean(res["X3"]))
+	#x1.mle(res)
+	#x2.mle(res)
+	#x3.mle(res)
+	network.mle(res)
+	print x1.params
+	print x2.params
+	print x3.params
+	
+	

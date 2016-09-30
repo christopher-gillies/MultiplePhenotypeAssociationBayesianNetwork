@@ -95,17 +95,33 @@ class BayesianNetwork:
 			print str(node)
 		
 	#forward sample
-	def forward_sample(self):
-		s = dict()
-		for node in self.nodes:
-			par_dict = dict()
-			for parent in node.parents:
-				par_dict[parent.name] = [ s[parent.name] ]
-			s[node.name] = node.simulate(par_dict)
-		return s
+	def forward_sample(self, n=1):
+		sample = None
+		for i in range(0,n):
+			s = dict()
+			for node in self.nodes:
+				par_dict = dict()
+				for parent in node.parents:
+					par_dict[parent.name] = [ s[parent.name] ]
+				s[node.name] = node.simulate(par_dict)
+			
+			if sample is None:
+				sample = dict()
+				for key,value in s.iteritems():
+					sample[key] = list()
+					sample[key].append(value)
+			else:
+				for key,value in s.iteritems():
+					sample[key].append(value)	
+		return pd.DataFrame(sample)
 				
 	#mle learning
-	
+	def mle(self,data):
+		assert type(data) == pd.DataFrame
+		for node in self.nodes:
+			node.mle(data)
+		
+		
 	#set params Node key
 		
 #Note that the underscore makes this class private
@@ -147,11 +163,16 @@ class _Node:
 		assert isinstance(child,_Node)
 		#add the child to this node's children
 		#add this node to the childs's parents
-		self.children.append(children)
+		self.children.append(child)
+		self.children_names[child.name] = None
 		child.parents.append(self)
+		child.parent_names[self.name] = None
 	
 	def __str__(self):
 		return "Name: {0}, Children: {1}".format(self.name, str(self.children_names.keys()))
+		
+	def mle(self):
+		raise Exception("Not supported")
 			
 class DiscreteNode(_Node):
 	def __init__(self,name,values):
@@ -196,6 +217,85 @@ class DiscreteNode(_Node):
 		_Node.set_params(self,params_df)
 		assert isinstance(self.params,pd.DataFrame)
 	
+	def mle(self,data):
+		assert type(data) is pd.DataFrame
+		parent_names = self.parent_names.keys()
+		parent_names_and_self = [self.name]
+		parent_names_and_self.extend(parent_names)
+		#verify that the data fram contains the columns that we need
+		assert len(data.columns.intersection(parent_names_and_self)) == len(parent_names) + 1
+		
+		
+		#get columns of interest
+		data_sub = data[parent_names_and_self]
+		
+		#TODO: check that the ranges match
+		
+		assert len(parent_names_and_self) > 0
+		
+		if len(parent_names_and_self) == 1:
+			vals_count_dict = dict()
+			list_of_vals_in_df = [x for x in data_sub[self.name]]
+			#print list_of_vals_in_df
+			#initialize dictionary
+			for self_val in self.values:
+				vals_count_dict[self_val] = 0.0
+			
+			#count observations
+			total = 0.0
+			for val in list_of_vals_in_df:
+				assert vals_count_dict.has_key(val)
+				vals_count_dict[val] += 1.0
+				total += 1.0
+			
+			#create param_dict
+			param_dict = dict()
+			param_dict["prob"] = []
+			param_dict[self.name] = []
+			for key,val in vals_count_dict.iteritems():
+				param_dict["prob"].append(val/total)
+				param_dict[self.name].append(key)
+			
+			#create params dataframe
+			params = pd.DataFrame(param_dict)
+			self.set_params(params)
+		
+		else:
+			
+			#group by the parents
+			df_parents_groups = data_sub.groupby(parent_names)
+			params_res = dict()
+			#initialize
+			params_res["prob"] = list()
+			for name in parent_names_and_self:
+				params_res[name] = list()
+	
+			for group in df_parents_groups:
+				parent_vals = group[0]
+				assert len(parent_vals) == len(parent_names)
+				g_value = group[1]
+				counts = g_value.groupby([self.name]).count()[parent_names[0]]
+				freqs = counts / counts.sum()
+	
+				#insert child and parent vals into dict results
+				for self_val in self.values:
+					self_prob = freqs.get(self_val)
+					params_res["prob"].append(self_prob)
+					params_res[self.name].append(self_val)
+			
+					#insert parent values	
+					for index in range(0,len(parent_names)):
+						par_name = parent_names[index]
+						par_val = parent_vals[index]
+						params_res[par_name].append(par_val)
+		
+	
+			params = pd.DataFrame(params_res)
+			self.set_params(params)
+			
+			
+		
+	
 	def simulate(self,parents_vals=None):
 		#print parents_vals
 		if len(self.parent_names) > 0:	
@@ -217,8 +317,11 @@ class DiscreteNode(_Node):
 		df_tmp_2 = df_tmp_1.isin(parents_vals)
 		#create a logical index for those rows
 		ind = df_tmp_2.apply(all_true,axis=1)
+		#subset the parameter data frame to find matching event
+		matching_events = self.params.loc[ind]
+		assert matching_events.shape[0] == self.num_vals, "Not enough events specified for {0}".format(str(self.params))
 		#get the probabilites for those indices
-		probs = self.params.loc[ind]['prob'].tolist()
+		probs = matching_events['prob'].tolist()
 		#random sample and get the index in the dataframe for that probability
 		random_index = (np.random.multinomial(1,probs,size=1) == 1).tolist()[0]
 		#get the value of this variable that that index corresponds to
