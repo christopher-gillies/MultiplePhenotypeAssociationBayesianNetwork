@@ -55,18 +55,42 @@ class BayesianNetwork:
 		#validate that all are nodes and all names are distinct
 		num_is_latent = 0
 		names = {}
+		latent_node = None
 		for node in nodes:
 			assert isinstance(node,_Node)
+			assert node.name != "prob"
 			if node.is_latent:
+				latent_node = node
 				num_is_latent += 1
 			
 			assert not names.has_key(node.name)
 			names[node.name] = 1
 			
-		assert num_is_latent <= 1
+		assert num_is_latent <= 1, "Only one latent node allowed"
 
 		#compute topological sort
 		self.__dfs__(nodes)
+		assert self.nodes is not None
+		self.latent_node = latent_node
+		self.set_has_latent_descendant()
+		
+		
+	def set_has_latent_descendant(self):
+		"""
+		loop through the parents of the latent node if it exists
+		mark each parent as having a latent ancestor
+		mark any ancestors of these parents
+		"""
+		assert self.nodes is not None
+		if self.latent_node is not None:
+			for parent in self.latent_node.parents:
+				self.mark_has_latent_descendant(parent)
+	
+	def mark_has_latent_descendant(self,node):
+		assert node is not None
+		node.set_has_latent_descendant()
+		for parent in node.parents:
+			self.mark_has_latent_descendant(parent)
 	
 	def __dfs__(self,nodes):
 		for node in nodes:
@@ -91,11 +115,13 @@ class BayesianNetwork:
 			self.nodes.insert(0,node)
 	
 	def print_network(self):
+		assert self.nodes is not None, "Please set the nodes of the network"
 		for node in self.nodes:
 			print str(node)
 		
 	#forward sample
 	def forward_sample(self, n=1):
+		assert self.nodes is not None
 		sample = None
 		for i in range(0,n):
 			s = dict()
@@ -117,10 +143,12 @@ class BayesianNetwork:
 				
 	#mle learning
 	def mle(self,data):
+		assert self.nodes is not None
 		assert type(data) == pd.DataFrame
 		for node in self.nodes:
 			node.mle(data)
 	
+	#compute joint probability
 	def	joint_prob(self,dict_vals,log=True):
 		assert self.nodes is not None
 		log_joint = 0.0
@@ -132,7 +160,30 @@ class BayesianNetwork:
 			return log_joint
 		else:
 			return np.exp(log_joint)
-
+	
+	def complete_data_log_likelihood(self,data):
+		assert self.nodes is not None
+		assert type(data) == pd.DataFrame
+		llh = 0.0
+		for index,row in data.iterrows():
+			llh += self.joint_prob(row.to_dict())
+		return llh
+		
+		
+		
+	#perform hard expectation maximization
+	#only support binary for time being
+	#will consider mcmc for normal
+	def hard_em(self,data):
+		assert self.nodes is not None
+		assert type(data) == pd.DataFrame
+		#only allow this algorithm when the latent node has no parents
+		assert len(self.latent_node.parents) == 0
+		
+		#assume data has been completed already as the initialization is application specific
+		#mle of parameters
+		
+		
 #Note that the underscore makes this class private
 class _Node:
 	
@@ -148,6 +199,13 @@ class _Node:
 		#Current specification will only allow 1 node to be latent
 		#Learning will be used ONLY children of this Node
 		self.is_latent = False
+		self.has_latent_descendant = False
+	
+	def set_is_latent(self):
+		self.is_latent = True
+	
+	def set_has_latent_descendant(self):
+		self.has_latent_descendant = True
 	
 	def set_params(self,params):
 		assert params is not None
@@ -178,7 +236,7 @@ class _Node:
 		child.parent_names[self.name] = None
 	
 	def __str__(self):
-		return "Name: {0}, Children: {1}".format(self.name, str(self.children_names.keys()))
+		return "Name: {0}, is_latent: {1}, Children: {2}".format(self.name, self.is_latent,str(self.children_names.keys()))
 		
 	def mle(self):
 		raise Exception("Not supported")

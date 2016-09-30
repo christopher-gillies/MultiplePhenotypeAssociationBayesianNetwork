@@ -140,7 +140,16 @@ def test_forward_sample_1():
 
 	network.set_nodes([x1,x2,x3])
 	network.print_network()
+	
+	#test joint
 	np.testing.assert_almost_equal(network.joint_prob({ "X1": 'y', "X2":0, "X3":0 },log=False),  (0.1 * 0.8 * 0.1))
+	#test log likelihood
+	
+	df_test = pd.DataFrame({ "X1": ['y','y'], "X2": [0,0], "X3": [0,0] })
+	
+	exp_llh = 2 * network.joint_prob({ "X1": 'y', "X2":0, "X3":0 })
+	print exp_llh
+	np.testing.assert_almost_equal(exp_llh, network.complete_data_log_likelihood(df_test))
 	
 	res = network.forward_sample(200)
 	print res
@@ -155,4 +164,31 @@ def test_forward_sample_1():
 	print x2.params
 	print x3.params
 	
+
+def test_set_has_latent_descendant():
+	print "Test has latent descendant"
+	x1 = bn.DiscreteNode("X1",[0,1])
+	x2 = bn.DiscreteNode("X2",[0,1])
+	x3 = bn.DiscreteNode("X3",[0,1])
+	x4 = bn.DiscreteNode("X4",[0,1])
+	x5 = bn.DiscreteNode("X5",[0,1])
 	
+	x1.add_child(x2)
+	x2.add_child(x3)
+	x3.add_child(x4)
+	x4.add_child(x5)
+	
+	x4.set_is_latent()
+	
+	nodes = [x1,x2,x3,x4,x5]
+	network = bn.BayesianNetwork()
+	network.set_nodes(nodes)
+	network.print_network()
+	
+	assert x4.has_latent_descendant == False
+	assert x5.has_latent_descendant == False
+	
+	assert x1.has_latent_descendant == True
+	assert x2.has_latent_descendant == True
+	assert x3.has_latent_descendant == True
+
