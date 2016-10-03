@@ -160,7 +160,7 @@ class BayesianNetwork:
 		assert self.nodes is not None
 		log_joint = 0.0
 		for node in self.nodes:
-			print "joint " + str(node)
+			#print "joint " + str(node)
 			log_joint += node.prob(dict_vals,log=True)
 		
 		if log:
@@ -193,9 +193,9 @@ class BayesianNetwork:
 		num_iter = 1
 		self.mle(data)
 		previous_llh = -np.inf
-		current_llh = self.complete_data_log_likelihood(self,data)
-		
-		while current_llh < previous_llh:
+		current_llh = self.complete_data_log_likelihood(data)
+		llhs = [current_llh]
+		while True:
 			print "Iteration: {0}".format(num_iter)
 			print "Previous LLH: {0}".format(previous_llh)
 			print "Current LLH: {0}".format(current_llh)
@@ -204,9 +204,15 @@ class BayesianNetwork:
 			#hard m step
 			self.mle(data)
 			previous_llh = current_llh
-			current_llh = self.complete_data_log_likelihood(self,data)
+			current_llh = self.complete_data_log_likelihood(data)
 			num_iter += 1
-			
+			llhs.append(current_llh)
+			#if our log likelihood does not improve then
+			if current_llh <= previous_llh:
+				break
+		
+		return { "num_iter": num_iter, "llhs": llhs }
+		
 	def __prob_x_given_others__(self,dict_data,target = None):
 		"""
 		Computes the log conditional probability of each value from the target variable given
@@ -257,14 +263,15 @@ class BayesianNetwork:
 		assign each rows value to be the MAP estimator (value with maximum probability: mode)
 		"""
 		assert self.latent_node is not None
-		assert self.latent.num_vals == 2
+		assert self.latent_node.num_vals == 2
 		
 		for index,row in data.iterrows():
 			log_cond_probs = self.__prob_x_given_others__(row.to_dict())
 			max_val,max_log_prob = find_max_key_val_in_dict(log_cond_probs)
 			
 			#assign the row to be the value with the maximum probability
-			row[self.latent_node.name] = max_val
+			data.set_value(index,self.latent_node.name,max_val)
+			#row[self.latent_node.name] = max_val
 		
 #Note that the underscore makes this class private
 class _Node:
@@ -406,6 +413,8 @@ class DiscreteNode(_Node):
 		else:
 			return prob	
 	
+	#TODO: Need to update this routine to account for unobserved events
+	# this does not work in those cases
 	def mle(self,data):
 		assert type(data) is pd.DataFrame
 		parent_names = self.parent_names.keys()
@@ -461,7 +470,11 @@ class DiscreteNode(_Node):
 	
 			for group in df_parents_groups:
 				parent_vals = group[0]
-				assert len(parent_vals) == len(parent_names)
+				print "parent_vals: {0}".format(parent_vals)
+				if len(self.parents) > 1:
+					assert len(parent_vals) == len(parent_names)
+				else:
+					parent_vals = [parent_vals]
 				g_value = group[1]
 				counts = g_value.groupby([self.name]).count()[parent_names[0]]
 				freqs = counts / counts.sum()
@@ -480,6 +493,11 @@ class DiscreteNode(_Node):
 		
 	
 			params = pd.DataFrame(params_res)
+			###
+			# Add back missing params
+			# enumerate all param combos
+			# check
+			###
 			self.set_params(params)
 			
 			

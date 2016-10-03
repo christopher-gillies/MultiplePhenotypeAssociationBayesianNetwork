@@ -248,4 +248,134 @@ def test__prob_x_given_others__():
 	normalizer = joint_d2_x2_1 + joint_d2_x2_0
 	np.testing.assert_almost_equal(res[1],np.log( joint_d2_x2_1 / normalizer))
 	np.testing.assert_almost_equal(res[0],np.log(joint_d2_x2_0 / normalizer))
+
+
+def test__hard_e_step():
+	print "test__hard_e_step"
+	network = bn.BayesianNetwork()
+	x1 = bn.DiscreteNode("X1",['n','y'])
+	x1.set_is_latent()
+	x2 = bn.DiscreteNode("X2",[0,1])
+	x3 = bn.DiscreteNode("X3",[0,1])
+	network.set_nodes([x1,x2,x3])
+	#override default implementation
+	network.__prob_x_given_others__ = lambda x: { 'y':0.1 , 'n':0.001 }
+	df = pd.DataFrame( { "X1":['n','n'], "X2":[0,0],"X3":[1,1] })
+	print df
+	network.__hard_e_step__(df)
+	print df
+	for index,row in df.iterrows():
+		assert row["X1"] == 'y'
+	
+def test_hard_em_logic():
+	print "test_hard_em_logic"
+	#override
+	#__hard_e_step__(data)
+	#mle(data)
+	#complete_data_log_likelihood
+	
+	network = bn.BayesianNetwork()
+	x1 = bn.DiscreteNode("X1",['n','y'])
+	x1.set_is_latent()
+	x2 = bn.DiscreteNode("X2",[0,1])
+	x3 = bn.DiscreteNode("X3",[0,1])
+	network.set_nodes([x1,x2,x3])
+	#override default implementation
+	network.__hard_e_step__ = lambda x: None
+	network.mle = lambda x: None
+	
+	
+	def llh_func(x):
+		llh_func.counter += 1
+		if llh_func.counter == 1:
+			return -10
+		elif llh_func.counter == 2:
+			return -8
+		elif llh_func.counter == 3:
+			return -6
+		elif llh_func.counter == 4:
+			return -2
+		else:
+			return -2
+
+	llh_func.counter = 0
+	network.complete_data_log_likelihood = llh_func
+	
+	df = pd.DataFrame( { "X1":['n','n'], "X2":[0,0],"X3":[1,1] })
+	res = network.hard_em(df)
+	assert res["num_iter"] == 5
+
+
+
+#####
+# need to update mle step for this to work properly with discrete variables
+#####
+def test_hard_em():
+	print "test_hard_em"
+	"""
+	Try to learn X1 | X2,X3
+	X1 --> X2 --> X3
+	X1 --> X3
+	"""
+	x1 = bn.DiscreteNode("X1",[0,1])
+	x1.set_is_latent()
+	x2 = bn.DiscreteNode("X2",[0,1])
+	x3 = bn.DiscreteNode("X3",[0,1])
+	
+	x1.add_child(x2)
+	x1.add_child(x3)
+	x2.add_child(x3)
+	
+	x1.set_params( 
+	pd.DataFrame(
+	[
+		[0.5,0],
+		[0.5,1]
+	]
+	,columns=['prob','X1'])
+	)
+	
+	x2_params = pd.DataFrame(
+	[
+		[0.4,0,0],
+		[0.6,1,0],
+		[0.4,0,1],
+		[0.6,1,1],
+	],columns=['prob','X2','X1'])
+	x2.set_params(x2_params)
+	
+	x3_params = pd.DataFrame(
+	[
+		[0.3,0,0,0],
+		[0.7,1,0,0],
+		[0.3,0,0,1],
+		[0.7,1,0,1],
+		[0.3,0,1,0],
+		[0.7,1,1,0],
+		[0.3,0,1,1],
+		[0.7,1,1,1],
+	],columns=['prob','X3','X1','X2'])
+	x3.set_params(x3_params)
+	
+	network = bn.BayesianNetwork()
+	network.set_nodes([x1,x2,x3])
+	
+	#forward sample
+	sample = network.forward_sample(200)
+	print sample
+	network.mle(sample)
+	print x3.params
+	sample_copy = sample.copy()
+	
+	#set initial data
+	for index,row in sample_copy.iterrows():
+		#data.set_value(index,self.latent_node.name,max_val)
+		sample_copy.set_value(index,"X1",row["X2"])
+	
+	#run em
+	#should just do MLE params
+	#network.hard_em(sample)
+		
+	#check accuracy
+	
 	
