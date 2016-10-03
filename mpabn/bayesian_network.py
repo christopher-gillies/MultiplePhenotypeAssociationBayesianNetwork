@@ -30,6 +30,7 @@ Example
 
 
 """
+from scipy.misc import logsumexp
 from scipy.stats import bernoulli
 from scipy.stats import uniform
 from scipy.stats import norm
@@ -45,12 +46,18 @@ import matplotlib.pyplot as plt
 from sklearn import datasets, linear_model
 
 from helpers import all_true
+from helpers import find_max_key_val_in_dict
 
 class BayesianNetwork:
 	def __init__(self):
 		pass
 		
 	def set_nodes(self,nodes):
+		"""
+		set the nodes for this network
+		* all nodes have to have a distinct name
+		* at most 1 latent node is allowed
+		"""
 		assert type(nodes) == list
 		#validate that all are nodes and all names are distinct
 		num_is_latent = 0
@@ -63,7 +70,7 @@ class BayesianNetwork:
 				latent_node = node
 				num_is_latent += 1
 			
-			assert not names.has_key(node.name)
+			assert not names.has_key(node.name), "Duplicate name: {0}".format(node.name)
 			names[node.name] = 1
 			
 		assert num_is_latent <= 1, "Only one latent node allowed"
@@ -174,15 +181,90 @@ class BayesianNetwork:
 	#perform hard expectation maximization
 	#only support binary for time being
 	#will consider mcmc for normal
-	def hard_em(self,data):
+	def hard_em(self,data,max_iter=100):
+		assert self.latent_node is not None
 		assert self.nodes is not None
 		assert type(data) == pd.DataFrame
 		#only allow this algorithm when the latent node has no parents
 		assert len(self.latent_node.parents) == 0
 		
 		#assume data has been completed already as the initialization is application specific
-		#mle of parameters
+		#mle of parameters to get initial parameters
+		num_iter = 1
+		self.mle(data)
+		previous_llh = -np.inf
+		current_llh = self.complete_data_log_likelihood(self,data)
 		
+		while current_llh < previous_llh:
+			print "Iteration: {0}".format(num_iter)
+			print "Previous LLH: {0}".format(previous_llh)
+			print "Current LLH: {0}".format(current_llh)
+			#hard e step
+			self.__hard_e_step__(data)
+			#hard m step
+			self.mle(data)
+			previous_llh = current_llh
+			current_llh = self.complete_data_log_likelihood(self,data)
+			num_iter += 1
+			
+	def __prob_x_given_others__(self,dict_data,target = None):
+		"""
+		Computes the log conditional probability of each value from the target variable given
+		all other variables.
+		Return: dictionary [value] --> log prob
+		* assumes all other variables have been specified
+		"""
+		
+		if target is None:
+			target = self.latent_node
+		
+		#check that all variables have been specified
+		for node in self.nodes:
+			if node is not target:
+				assert dict_data.has_key(node.name)
+			
+		old_x = dict_data[target.name]
+		log_probs = list()
+		log_joint_prob_dict = dict()
+		
+		#compute joint probs
+		for x_val in target.values:
+			dict_data[target.name] = x_val
+			log_joint_prob = self.joint_prob(dict_data)
+			log_probs.append(log_joint_prob)
+			#print "log_joint_prob: {0}".format(log_joint_prob)
+			#print "x_val: {0}".format(x_val)
+			#print "log_joint_prob: {0}".format(log_joint_prob)
+			log_joint_prob_dict[x_val] = log_joint_prob
+		
+		#normalize joint probs	
+		normalizer = logsumexp(log_probs)
+		
+		log_cond_prob = dict()
+		for x_val,log_joint_prob in log_joint_prob_dict.iteritems():
+			log_conditional_prob = log_joint_prob - normalizer
+			log_cond_prob[x_val] = log_conditional_prob
+			
+		#reset input dictionary	
+		dict_data[target.name] = old_x	
+		
+		return log_cond_prob
+			
+	def __hard_e_step__(self,data):
+		"""
+		loop through each row of the data
+		compute the prob of each value of latent variable
+		assign each rows value to be the MAP estimator (value with maximum probability: mode)
+		"""
+		assert self.latent_node is not None
+		assert self.latent.num_vals == 2
+		
+		for index,row in data.iterrows():
+			log_cond_probs = self.__prob_x_given_others__(row.to_dict())
+			max_val,max_log_prob = find_max_key_val_in_dict(log_cond_probs)
+			
+			#assign the row to be the value with the maximum probability
+			row[self.latent_node.name] = max_val
 		
 #Note that the underscore makes this class private
 class _Node:

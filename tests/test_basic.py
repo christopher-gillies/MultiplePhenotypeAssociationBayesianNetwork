@@ -4,6 +4,9 @@ from .context import mpabn
 from mpabn import bayesian_network as bn
 from mpabn import helpers
 
+"""
+py.test tests/test_basic.py -s
+"""
 def test_ex():
 	print np.sqrt(2)
 	assert np.sqrt(2) == np.sqrt(2)
@@ -42,5 +45,12 @@ def test_pandas_2():
 	r = (np.random.multinomial(1,p,size=1) == 1).tolist()[0]
 	params.loc[ind]['X1'].loc[r].iloc[0]
 	
+
+def test_find_max():
+	d = { 'x':np.log(0.1), 'y':np.log(0.01), 'z':np.log(0.9), 'a':np.log(0.001)}
+	key,val = helpers.find_max_key_val_in_dict(d)
+	print "key,val = {0},{1}".format(key,val)
+	assert key == 'z'
+	np.testing.assert_almost_equal(val,np.log(0.9))
 	
 	

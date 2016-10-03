@@ -192,3 +192,60 @@ def test_set_has_latent_descendant():
 	assert x2.has_latent_descendant == True
 	assert x3.has_latent_descendant == True
 
+"""
+Create a network
+Create a small dataset and check the probabilities
+"""
+def test__prob_x_given_others__():
+	print "test__prob_x_given_others__"
+	network = bn.BayesianNetwork()
+	x1 = bn.DiscreteNode("X1",['n','y'])
+	x2 = bn.DiscreteNode("X2",[0,1])
+	x3 = bn.DiscreteNode("X3",[0,1])
+	x1.add_parent(x2)
+	x1.add_parent(x3)
+	params = pd.DataFrame(
+	[
+		[0.1,'y',0,0],
+		[0.9,'n',0,0],
+		[0.2,'y',0,1],
+		[0.8,'n',0,1],
+		[0.3,'y',1,0],
+		[0.7,'n',1,0],
+		[0.4,'y',1,1],
+		[0.6,'n',1,1]
+	],columns=['prob','X1','X2','X3'])
+	x1.set_params(params)
+	x2.set_params( 
+	pd.DataFrame(
+	[
+		[0.1,0],
+		[0.9,1]
+	]
+	,columns=['prob','X2'])
+	)
+	x3.set_params( 
+	pd.DataFrame(
+	[
+		[0.8,0],
+		[0.2,1]
+	]
+	,columns=['prob','X3'])
+	)
+	network.set_nodes([x1,x2,x3])
+	
+	d = {"X1":'y',"X2":1,"X3":1}
+	
+	res = network.__prob_x_given_others__(d,target=x1)
+	np.testing.assert_almost_equal(res['y'],np.log(0.4))
+	np.testing.assert_almost_equal(res['n'],np.log(0.6))
+	
+	d2 = {"X1":'y',"X2":1,"X3":1}
+	
+	res = network.__prob_x_given_others__(d2,target=x2)
+	joint_d2_x2_1 = 0.9 * 0.2 * 0.4
+	joint_d2_x2_0 = 0.1 * 0.2 * 0.2
+	normalizer = joint_d2_x2_1 + joint_d2_x2_0
+	np.testing.assert_almost_equal(res[1],np.log( joint_d2_x2_1 / normalizer))
+	np.testing.assert_almost_equal(res[0],np.log(joint_d2_x2_0 / normalizer))
+	
