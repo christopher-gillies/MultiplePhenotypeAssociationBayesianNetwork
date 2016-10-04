@@ -63,3 +63,33 @@ def test_simulate_2():
 		x[i] = node.simulate(d)
 
 	assert np.abs(np.mean(x) - helpers.sigmoid(1 + 2) < 0.05)
+	
+def test_forward_sample_and_mle():
+	p1 = bn.SigmoidNode("X1",[0,1])
+	p1.set_params([0])
+	p2 = bn.SigmoidNode("X2",[0,1])
+	p2.set_params([0])
+	node = bn.SigmoidNode("X3",[0,1])
+	print node
+	node.add_parent(p1)
+	node.add_parent(p2)
+	node.set_params([0,1,2])
+	
+	network = bn.BayesianNetwork()
+	network.set_nodes([p1,p2,node])
+	
+	sample = network.forward_sample(10000)
+	print sample
+	print np.mean(sample["X1"])
+	print np.mean(sample["X2"])
+	print np.mean(sample["X3"])
+	p_x3_1 = 0.25 * (helpers.sigmoid(0) + helpers.sigmoid(1) + helpers.sigmoid(2) + helpers.sigmoid(3))
+	print(p_x3_1)
+	
+	assert np.abs(np.mean(sample["X3"]) - p_x3_1 < 0.05)
+	
+	network.mle(sample)
+	print p1.get_params()
+	print p2.get_params()
+	print node.get_params()
+	

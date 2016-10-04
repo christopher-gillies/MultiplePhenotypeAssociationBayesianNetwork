@@ -305,6 +305,9 @@ class _Node:
 	def set_params(self,params):
 		assert params is not None
 		self.params = params
+	
+	def get_params(self):
+		return self.params
 			
 	def is_root(self):
 		return len(self.parents) == 0
@@ -612,8 +615,37 @@ class SigmoidNode(_Node):
 	
 	def mle(self,data):
 		assert type(data) is pd.DataFrame
-		#should call set params
-				
+		parent_names = []
+		for par in self.parents:
+			assert par.name in data.columns
+			parent_names.append(par.name)
+		#get columns of interest
+		data_sub = data[parent_names].values
+		response = data[self.name].values
+		
+		if len(self.parents) > 0:
+			glm = model.LogisticRegression(C=10 ** 12)
+			glm.fit(X=data_sub,y=response)
+		
+			params = []
+			params.append(glm.intercept_[0])
+			for beta in glm.coef_[0]:
+				params.append(beta)	
+		
+			self.set_params(params)
+		else:
+			X = [ ]
+			y = [ ]
+			for v in response.tolist():
+				X.append([1])
+				y.append(v)
+			glm = model.LogisticRegression(fit_intercept=False,C=10 ** 12)
+			glm.fit(X=X,y=y)
+			params = []
+			params.append(np.float(glm.coef_[0]))	
+			#print params
+			self.set_params(params)
+			
 class GaussianNode(_Node):
 	def __init__(self,name):
 		_Node.__init__(self,name)
