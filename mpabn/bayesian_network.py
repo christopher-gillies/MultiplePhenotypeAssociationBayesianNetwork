@@ -47,6 +47,10 @@ from sklearn import datasets, linear_model
 
 from helpers import all_true
 from helpers import find_max_key_val_in_dict
+from helpers import sigmoid
+from helpers import logistic
+import sklearn.linear_model as model
+from scipy.stats import bernoulli
 
 class BayesianNetwork:
 	def __init__(self):
@@ -275,7 +279,9 @@ class BayesianNetwork:
 		
 #Note that the underscore makes this class private
 class _Node:
-	
+	"""
+	All children must provide an implementation for: set_params, mle, simulate, prob
+	"""
 	def __init__(self,name):
 		self.type = "Node"
 		self.name = name
@@ -330,9 +336,18 @@ class _Node:
 	def mle(self):
 		raise Exception("Not supported")
 	
-	def prob(self,log=True):
-		raise Exception("Not supported")
-			
+	def prob(self,dict_vals,log=True):
+		#make sure data has been input correctly
+		assert self.params is not None
+		assert dict_vals.has_key(self.name)
+		for parent_name in self.parent_names.keys():
+			assert dict_vals.has_key(parent_name)
+	
+	def simulate(self,parent_vals=None):
+		assert type(parent_vals) is dict
+		for key,val in parent_vals.iteritems():
+			assert self.parent_names.has_key(key)
+				
 class DiscreteNode(_Node):
 	def __init__(self,name,values):
 		assert name is not None
@@ -377,11 +392,7 @@ class DiscreteNode(_Node):
 		assert isinstance(self.params,pd.DataFrame)
 	
 	def prob(self,dict_vals,log=True):
-		#make sure data has been input correctly
-		assert self.params is not None
-		assert dict_vals.has_key(self.name)
-		for parent_name in self.parent_names.keys():
-			assert dict_vals.has_key(parent_name)
+		_Node.prob(self,dict_vals)
 		
 		#find the matching probability
 		prob = None
@@ -534,7 +545,71 @@ class DiscreteNode(_Node):
 		#get the value of this variable that that index corresponds to
 		simulated_val = self.params.loc[ind][self.name].loc[random_index].iloc[0]
 		return simulated_val
+
+class SigmoidNode(_Node):
+	# TODO:  override set_params, mle, simulate, prob
+	def __init__(self,name,values):
+		assert name is not None
+		assert 0 in values
+		assert 1 in values
 		
+		_Node.__init__(self,name)
+		# The number of values the discrete variable takes on
+		self.num_vals = len(values)
+		self.values = values
+	
+	def set_params(self,params):
+		"""
+		params are a tuple
+		first param is intercept
+		all others are betas corresponding to each parent
+		"""
+		assert params is not None
+		assert type(params) is list
+		assert len(params) == len(self.parents) + 1
+		_Node.set_params(self,params)
+		
+	
+	def prob(self,dict_vals,log=True):
+		#check that dictionary has all values needed for calculation
+		_Node.prob(self,dict_vals)
+		
+		val_of_node = dict_vals[self.name]
+		
+		vals = [1]
+		for par in self.parents:
+			vals.append(dict_vals[par.name])
+		
+		linear_comb = np.inner(self.params,vals)
+		p_val_is_1 = sigmoid(linear_comb)
+		
+		p_val_of_node = None
+		
+		if val_of_node == 1:
+			p_val_of_node = p_val_is_1
+		elif val_of_node == 0:
+			p_val_of_node = 1 - p_val_is_1
+		else:
+			raise("Error: Node: {0}, Value: {1} Not supported".format(self.name,val_of_node))
+		
+		if log:
+			return np.log(p_val_of_node)
+		else:
+			return p_val_of_node
+	
+	def simulate(self,parent_vals=None):
+		#perform assumption checking
+		_Node.simulate(self,parent_vals)
+		parent_vals_copy = parent_vals.copy()
+		
+		parent_vals_copy[self.name] = 1
+		p_1 = self.prob(parent_vals_copy,log=False)
+		return bernoulli.rvs(p_1, size=1)[0]
+	
+	def mle(self,data):
+		assert type(data) is pd.DataFrame
+		#should call set params
+				
 class GaussianNode(_Node):
 	def __init__(self,name):
 		_Node.__init__(self,name)
