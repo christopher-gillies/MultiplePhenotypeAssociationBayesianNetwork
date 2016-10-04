@@ -570,7 +570,7 @@ class SigmoidNode(_Node):
 		_Node.set_params(self,params)
 		
 	
-	def prob(self,dict_vals,log=True):
+	def prob(self,dict_vals,log=True,index=0):
 		#check that dictionary has all values needed for calculation
 		_Node.prob(self,dict_vals)
 		
@@ -578,7 +578,11 @@ class SigmoidNode(_Node):
 		
 		vals = [1]
 		for par in self.parents:
-			vals.append(dict_vals[par.name])
+			par_val = dict_vals[par.name]
+			if type(par_val) is list:
+				vals.append(par_val[index])
+			else:
+				vals.append(par_val)
 		
 		linear_comb = np.inner(self.params,vals)
 		p_val_is_1 = sigmoid(linear_comb)

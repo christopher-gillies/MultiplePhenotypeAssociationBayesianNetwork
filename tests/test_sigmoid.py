@@ -46,3 +46,20 @@ def test_simulate():
 	
 	print np.mean(x)
 	assert np.abs(np.mean(x) - helpers.sigmoid(1) < 0.05)
+	
+	
+def test_simulate_2():
+	p1 = bn.DiscreteNode("X1",[0,1])
+	p2 = bn.DiscreteNode("X2",[0,1])
+	node = bn.SigmoidNode("X3",[0,1])
+	print node
+	node.add_parent(p1)
+	node.add_parent(p2)
+	node.set_params([0,1,2])
+	
+	x = np.zeros(1000)
+	d = {"X1": [1], "X2":[1]}
+	for i in range(0,1000):
+		x[i] = node.simulate(d)
+
+	assert np.abs(np.mean(x) - helpers.sigmoid(1 + 2) < 0.05)
