@@ -185,13 +185,18 @@ class BayesianNetwork:
 	#perform hard expectation maximization
 	#only support binary for time being
 	#will consider mcmc for normal
-	def hard_em(self,data,max_iter=100):
+	def hard_em(self,data,max_iter=100,initialization_func=None):
 		assert self.latent_node is not None
 		assert self.nodes is not None
 		assert type(data) == pd.DataFrame
 		#only allow this algorithm when the latent node has no parents
 		assert len(self.latent_node.parents) == 0
 		
+		if initialization_func is not None:
+			#apply initialization function to the data
+			pass
+			
+			
 		#assume data has been completed already as the initialization is application specific
 		#mle of parameters to get initial parameters
 		num_iter = 1
@@ -563,7 +568,7 @@ class SigmoidNode(_Node):
 	
 	def set_params(self,params):
 		"""
-		params are a tuple
+		params are a list
 		first param is intercept
 		all others are betas corresponding to each parent
 		"""
@@ -578,6 +583,7 @@ class SigmoidNode(_Node):
 		_Node.prob(self,dict_vals)
 		
 		val_of_node = dict_vals[self.name]
+		assert val_of_node is 0 or val_of_node is 1
 		
 		vals = [1]
 		for par in self.parents:
@@ -644,8 +650,21 @@ class SigmoidNode(_Node):
 			params = []
 			params.append(np.float(glm.coef_[0]))	
 			#print params
-			self.set_params(params)
-			
+			SigmoidNode.set_params(self,params)
+
+class BinaryNode(SigmoidNode):
+	
+	def __init__(self,name):
+		SigmoidNode.__init__(self,name,[0,1])
+	
+	def set_params(self,p):
+		#inverse sigmoid function (logistic function)
+		intercept = - np.log(1/p - 1)
+		SigmoidNode.set_params(self,[intercept])
+	
+	def add_parent(self):
+		raise Exception("BinaryNode cannot have parents")
+				
 class GaussianNode(_Node):
 	def __init__(self,name):
 		_Node.__init__(self,name)
@@ -675,26 +694,64 @@ class LinearGaussianNode(_Node):
 	
 	def __init__(self,name):
 		_Node.__init__(self,name)
-		self.type = "LinearGaussianNode"
 	
-	def set_variance(self,variance):
-		assert len(var) == 0
-		self.params.variance = variance
+	def set_tolerance(self,tol):
+		assert tol is not None
+		assert type(tol) is np.float
+		self.tol = tol
 		
-	def set_betas(self,betas):
-		assert len(betas) > 0
-		self.params.betas = betas
+	def set_params(self,params,std_dev):
+		"""
+		params are a list
+		first param is intercept
+		all others are betas corresponding to each parent
+		std_dev is a separate parameter for the normal distribution
+		"""
+		assert params is not None
+		assert std_dev is not None
+		
+		if std_dev < 1/np.sqrt(2 * np.pi):
+			raise "Error: {0} standard deviation is too small. Normal density will give positive values".format(std_dev)		
+		assert type(params) is list
+		assert len(params) == len(self.parents) + 1
+		_Node.set_params(self,params)
+		self.std_dev = std_dev
+		#self.set_tolerance(std_dev / 2.0)
+	
+	def prob(self,dict_vals,log=True,index=0):
+		#check that dictionary has all values needed for calculation
+		_Node.prob(self,dict_vals)
 
-	def params_are_set(self):
-		betas = self.params.betas
-		variance = self.params.variance
-		if betas == None or variance == None:
-			return False
-		elif len(betas) > 0 and len(variance) == 0:
-			return True
-		else:
-			return False
+		val_of_node = dict_vals[self.name]
+
+		vals = [1]
+		for par in self.parents:
+			par_val = dict_vals[par.name]
+			if type(par_val) is list:
+				vals.append(par_val[index])
+			else:
+				vals.append(par_val)
+		
+		#mean
+		linear_comb = np.inner(self.params,vals)
 			
+		"""
+		normal distribution density function can give positive values if the standard deviation is less than 1/sqrt(2 * p)
+		we can address this is three ways
+		(1) Compute the probability of a particular value x as normal_cdf(x + tolerance) - normal_cdf(x - tolerance). (Initially I was thinking of using a tolerance of std_dev/2) #https://en.wikipedia.org/wiki/List_of_logarithmic_identities
+		(2) Standardize the input variables so that the distribution follows a standard normal.
+		(3) Throw an error if the standard deviation of a normal distribution is less than 1/sqrt(2 * pi)
+		
+		We are going with option (3) for now
+		Error is thrown in the set_params function
+		"""
+		
+		log_p_val_of_node = norm.logpdf(val_of_node,loc=linear_comb,scale=self.std_dev)
+		if log:
+			return log_p_val_of_node
+		else:
+			return np.exp(log_p_val_of_node)
+		
 	def simulate(self,x=None,n=1):
 		assert x != None
 		assert len(x) + 1 == len(self.params.betas)
