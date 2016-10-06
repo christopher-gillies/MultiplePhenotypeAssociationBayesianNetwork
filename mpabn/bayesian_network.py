@@ -638,7 +638,7 @@ class SigmoidNode(_Node):
 			for beta in glm.coef_[0]:
 				params.append(beta)	
 		
-			self.set_params(params)
+			SigmoidNode.set_params(self,params)
 		else:
 			X = [ ]
 			y = [ ]
@@ -652,43 +652,35 @@ class SigmoidNode(_Node):
 			#print params
 			SigmoidNode.set_params(self,params)
 
-class BinaryNode(SigmoidNode):
-	
+
+class ParentNode():
+	"""
+	Class for nodes without children
+	has some common functions for these types of nodes
+	"""
+	def add_parent(self):
+		raise Exception("{0} cannot have parents".format(type(self)))
+		
+	def prob_easy(self,val,log=False):
+		vals_dict = {}
+		vals_dict[self.name] = val
+		return self.prob( vals_dict,log)
+		
+
+class BinaryNode(SigmoidNode,ParentNode):
+	"""
+	This class is a binary parent node that functions similarly to discrete node
+	but it uses a sigmoid node for its implementation
+	"""
 	def __init__(self,name):
 		SigmoidNode.__init__(self,name,[0,1])
 	
 	def set_params(self,p):
+		assert type(p) is np.float
 		#inverse sigmoid function (logistic function)
 		intercept = - np.log(1/p - 1)
 		SigmoidNode.set_params(self,[intercept])
-	
-	def add_parent(self):
-		raise Exception("BinaryNode cannot have parents")
-				
-class GaussianNode(_Node):
-	def __init__(self,name):
-		_Node.__init__(self,name)
-		self.type = "GaussianNode"
-	
-	def check_parents(self):
-		for parent in self.parents:
-			assert isinstance(parent, DiscreteNode) 
-		
-	def set_mean(self,mean):
-		assert mean != None
-		self.mean = mean
-	
-	def set_std(self,sigma):
-		assert sigma != None
-		self.sigma = sigma
-		
-	def simulate(self,n):
-		sample = norm.rvs(loc=self.mean,scale=self.sigma,size=n)
-		if(n == 1):
-			return sample[1]
-		else:
-			return sample
-		
+						
 	
 class LinearGaussianNode(_Node):
 	
@@ -715,8 +707,11 @@ class LinearGaussianNode(_Node):
 		assert type(params) is list
 		assert len(params) == len(self.parents) + 1
 		_Node.set_params(self,params)
-		self.std_dev = std_dev
+		self.std_dev = np.float(std_dev)
 		#self.set_tolerance(std_dev / 2.0)
+	
+	def get_params(self):
+		return (self.params,self.std_dev)
 	
 	def prob(self,dict_vals,log=True,index=0):
 		#check that dictionary has all values needed for calculation
@@ -752,7 +747,76 @@ class LinearGaussianNode(_Node):
 		else:
 			return np.exp(log_p_val_of_node)
 		
-	def simulate(self,x=None,n=1):
-		assert x != None
-		assert len(x) + 1 == len(self.params.betas)
+	def simulate(self,parent_vals=None,index=0):
+		#perform assumption checking
+		_Node.simulate(self,parent_vals)
+		parent_vals_copy = parent_vals.copy()
 		
+		#collect values
+		vals = [1]
+		for par in self.parents:
+			par_val = parent_vals[par.name]
+			if type(par_val) is list:
+				vals.append(par_val[index])
+			else:
+				vals.append(par_val)
+				
+		#mean
+		linear_comb = np.inner(self.params,vals)
+		x = norm.rvs(loc=linear_comb,scale=self.std_dev,size=1)
+		return x
+
+	def mle(self,data):
+		assert type(data) is pd.DataFrame
+		parent_names = []
+		for par in self.parents:
+			assert par.name in data.columns
+			parent_names.append(par.name)
+		#get columns of interest
+		data_sub = data[parent_names].values
+		response = data[self.name].values
+		
+		#number of predictors + 1
+		p = len(self.parents) + 1
+		def std_dev_est(fit_model,X,y):
+			sigma_2 = np.sum((fit_model.predict(X) - y) ** 2) / float(len(y) - p)
+			return np.sqrt(sigma_2)
+		
+		if len(self.parents) > 0:
+			glm = model.LinearRegression()
+			glm.fit(X=data_sub,y=response)
+
+			params = []
+			params.append(glm.intercept_)
+			for beta in glm.coef_:
+				params.append(beta)	
+
+			LinearGaussianNode.set_params(self,params,std_dev_est(glm,data_sub,response))
+		else:
+			X = [ ]
+			y = [ ]
+			for v in response.tolist():
+				X.append([1])
+				y.append(v)
+			glm = model.LinearRegression(fit_intercept=False)
+			glm.fit(X=X,y=y)
+			params = []
+			params.append(np.float(glm.coef_))	
+			#print params
+			LinearGaussianNode.set_params(self,params,std_dev_est(glm,X,y))
+			
+			
+			
+class GaussianNode(LinearGaussianNode,ParentNode):
+	"""
+	GaussianNode that serves as a normal distribution parent node
+	it uses a LinearGaussianNode as its implementation
+	"""
+	def __init__(self,name):
+		LinearGaussianNode.__init__(self,name)
+	
+	def set_params(self,mean,std_dev):
+		assert type(mean) is np.float
+		assert type(std_dev) is np.float
+		
+		LinearGaussianNode.set_params(self,[mean],std_dev)
