@@ -49,8 +49,12 @@ from helpers import all_true
 from helpers import find_max_key_val_in_dict
 from helpers import sigmoid
 from helpers import logistic
+from helpers import p_neg_binom
+from helpers import r_neg_binom
 import sklearn.linear_model as model
 from scipy.stats import bernoulli
+
+from statsmodels.discrete.discrete_model import NegativeBinomial as nb_glm
 
 class BayesianNetwork:
 	def __init__(self):
@@ -701,14 +705,11 @@ class LinearGaussianNode(_Node):
 		"""
 		assert params is not None
 		assert std_dev is not None
-		
-		if std_dev < 1/np.sqrt(2 * np.pi):
-			raise "Error: {0} standard deviation is too small. Normal density will give positive values".format(std_dev)		
+			
 		assert type(params) is list
 		assert len(params) == len(self.parents) + 1
 		_Node.set_params(self,params)
 		self.std_dev = np.float(std_dev)
-		#self.set_tolerance(std_dev / 2.0)
 	
 	def get_params(self):
 		return (self.params,self.std_dev)
@@ -737,8 +738,7 @@ class LinearGaussianNode(_Node):
 		(2) Standardize the input variables so that the distribution follows a standard normal.
 		(3) Throw an error if the standard deviation of a normal distribution is less than 1/sqrt(2 * pi)
 		
-		We are going with option (3) for now
-		Error is thrown in the set_params function
+		After talking with William this really should not even be and issue
 		"""
 		
 		log_p_val_of_node = norm.logpdf(val_of_node,loc=linear_comb,scale=self.std_dev)
@@ -820,3 +820,106 @@ class GaussianNode(LinearGaussianNode,ParentNode):
 		assert type(std_dev) is np.float
 		
 		LinearGaussianNode.set_params(self,[mean],std_dev)
+		
+		
+
+class NegativeBinomialNode(_Node):
+
+	def __init__(self,name):
+		_Node.__init__(self,name)
+		
+		
+	def set_params(self,params,alpha):
+		"""
+		params are a list
+		first param is intercept
+		all others are betas corresponding to each parent
+		alpha is the dispersion parameter
+		"""
+		assert params is not None
+		assert std_dev is not None
+				
+		assert type(params) is list
+		assert len(params) == len(self.parents) + 1
+		_Node.set_params(self,params)
+		self.alpha = np.float(alpha)
+		
+		
+	def prob(self,dict_vals,log=True,index=0):
+		#check that dictionary has all values needed for calculation
+		_Node.prob(self,dict_vals)
+
+		val_of_node = dict_vals[self.name]
+
+		vals = [1]
+		for par in self.parents:
+			par_val = dict_vals[par.name]
+			if type(par_val) is list:
+				vals.append(par_val[index])
+			else:
+				vals.append(par_val)
+
+		#mean
+		linear_comb = np.inner(self.params,vals)
+		mean = np.exp(linear_comb)
+		log_p_val_of_node = p_neg_binom(val_of_node,alpha=self.alpha,mean=mean,log=True)
+		if log:
+			return log_p_val_of_node
+		else:
+			return np.exp(log_p_val_of_node)
+			
+	def simulate(self,parent_vals=None,index=0):
+		#perform assumption checking
+		_Node.simulate(self,parent_vals)
+		parent_vals_copy = parent_vals.copy()
+
+		#collect values
+		vals = [1]
+		for par in self.parents:
+			par_val = parent_vals[par.name]
+			if type(par_val) is list:
+				vals.append(par_val[index])
+			else:
+				vals.append(par_val)
+
+		#mean
+		linear_comb = np.inner(self.params,vals)
+		mean = np.exp(linear_comb)
+		x = helpers.r_neg_binom(alpha=self.alpha,mean=mean,num=1)
+		return x
+		
+		
+	def mle(self,data):
+		assert type(data) is pd.DataFrame
+		parent_names = []
+		for par in self.parents:
+			assert par.name in data.columns
+			parent_names.append(par.name)
+		#get columns of interest
+		data_sub = data[parent_names].values
+		response = data[self.name].values
+
+		if len(self.parents) > 0:
+			#fit neg binomial model
+			nb_model = nb_glm(y,X)
+			nb_results = nb_model.fit()
+
+			params = []
+			params.extend(nb_results.params[:-1])
+			alpha = np.float(nb_results.params[-1])
+			NegativeBinomialNode.set_params(self,params,alpha)
+		else:
+			X = [ ]
+			y = [ ]
+			for v in response.tolist():
+				X.append([1])
+				y.append(v)
+			
+			#fit neg binomial model
+			nb_model = nb_glm(y,X)
+			nb_results = nb_model.fit()
+
+			params = []
+			params.extend(nb_results.params[:-1])
+			alpha = np.float(nb_results.params[-1])
+			NegativeBinomialNode.set_params(self,params,alpha)

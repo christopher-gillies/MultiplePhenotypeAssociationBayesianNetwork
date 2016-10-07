@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>mpabn/bayesian_network.py</string>
+	<string>tests/test_basic.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -70,14 +70,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>63</integer>
+				<integer>51</integer>
 				<key>line</key>
-				<integer>723</integer>
+				<integer>658</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>688</integer>
+			<integer>648</integer>
 		</dict>
 		<key>mpabn/core.py</key>
 		<dict>
@@ -135,7 +135,7 @@
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>0</integer>
+			<integer>13</integer>
 			<key>selectFrom</key>
 			<dict>
 				<key>column</key>
@@ -151,19 +151,47 @@
 				<integer>4</integer>
 			</dict>
 		</dict>
-		<key>tests/test_sigmoid.py</key>
+		<key>tests/test_node.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>1</integer>
+				<key>line</key>
+				<integer>7</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>315</integer>
+		</dict>
+		<key>tests/test_normal.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>33</integer>
 				<key>line</key>
 				<integer>94</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
+			<integer>53</integer>
+		</dict>
+		<key>tests/test_sigmoid.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>1</integer>
+				<key>line</key>
+				<integer>98</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
 			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>63</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
@@ -173,11 +201,13 @@
 		<string>tests/context.py</string>
 		<string>mpabn/core.py</string>
 		<string>mpabn/bayesian_network.py</string>
+		<string>tests/test_normal.py</string>
+		<string>tests/test_node.py</string>
 		<string>tests/test_sigmoid.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{-1591, -366}, {988, 841}}</string>
+	<string>{{-1683, -462}, {988, 841}}</string>
 </dict>
 </plist>

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import nbinom
 
 def all_true(vec):
 	for v in vec:
@@ -27,3 +28,32 @@ def sigmoid(x):
 def logistic(p):
     assert p > 0
     return np.log(p / (1 - p))
+
+
+def p_neg_binom(x,alpha,mean,log=True):
+	"""
+	returns probability of x when x is negative binomially distributed
+	x is the val to get the prob of
+	alpha is the dispersion parameter
+	mean is the mean of the negative binomial distribution
+	returns log by default
+	"""
+	r =  1.0 / np.float(alpha)
+	p = r / (r + mean)
+	log_p = nbinom.logpmf(x, r, p, loc=0)
+	if log:
+		return log_p
+	else:
+		return np.exp(log_p)
+		
+
+def r_neg_binom(alpha,mean,num=1):
+	"""
+	returns negatively binomially distributed data
+	alpha is the dispersion parameter
+	mean is the mean of the negative binomial distribution
+	num is the number of random numbers to return
+	"""
+	r =  1.0 / np.float(alpha)
+	p = r / (r + mean)
+	return nbinom.rvs(r,p,size=num)
