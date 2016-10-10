@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import nbinom
+import statsmodels.api as sm
 
 def all_true(vec):
 	for v in vec:
@@ -57,3 +58,22 @@ def r_neg_binom(alpha,mean,num=1):
 	r =  1.0 / np.float(alpha)
 	p = r / (r + mean)
 	return nbinom.rvs(r,p,size=num)
+	
+	
+def fit_neg_binom(y,X,alpha=1,tol=0.01,maxiter=100):
+	nb_model = sm.GLM(y, X, family=sm.families.NegativeBinomial(alpha=alpha))
+	nb_results = nb_model.fit()
+	iter = 1
+	while np.abs(  nb_results.scale - 1) >= tol and iter <= maxiter:
+		#print "scale {0}".format(nb_results.scale)
+		#print "alpha {0}".format(alpha)
+		#print "diff {0}".format(np.abs(  nb_results.scale - alpha))
+		alpha = alpha * nb_results.scale
+		#print "next alpha {0}".format(alpha)
+		
+		nb_model = sm.GLM(y, X, family=sm.families.NegativeBinomial(alpha=alpha))
+		nb_results = nb_model.fit()
+		iter +=1
+		
+	return { "params":nb_results.params,"alpha":alpha,"results":nb_results, "iter":iter }	
+	

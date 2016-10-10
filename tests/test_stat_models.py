@@ -86,8 +86,8 @@ def test_neg_bin_2():
 	print "test neg binom 2"
 	
 	#1/dispersion parameter
-	r = 2.0
-	mean = 2
+	r = 100.0
+	mean = 20
 	#var = mean + 1/r * (mean ** 2)
 	#p1 = r / np.float(r + mean)
 	
@@ -97,18 +97,18 @@ def test_neg_bin_2():
 	#print var
 	#print var_ex
 	
-	
+	n = 500
 	#s1 = nbinom.rvs(r,p1,size=1000)
-	s1 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=1000)
+	s1 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=n)
 	print np.mean(s1)
 	print np.var(s1)
 	
 	#assume same 1/dispersion but shift mean by 2
-	mean = 6
+	mean = 30
 	#var = mean + 1/r * (mean ** 2)
 	#p2 = r / np.float(r + mean)
 	
-	s2 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=1000)
+	s2 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=n)
 	print np.mean(s2)
 	print np.var(s2)
 	
@@ -119,24 +119,25 @@ def test_neg_bin_2():
 	y.extend(s2)
 	
 	x = []
-	x.extend(np.zeros(1000))
-	x.extend(np.ones(1000))
+	x.extend(np.zeros(n))
+	x.extend(np.ones(n))
 	
 	#add intercept
 	X = []
-	for a in x:
-		X.append([1,a])
+	for i in range(0,len(x)):
+		X.append([1,np.int(x[i])])
+
 		
-	assert len(y) == 2000
-	assert len(x) == 2000
-	assert len(X) == 2000
+	assert len(y) == 2 * n
+	assert len(x) == 2 * n
+	assert len(X) == 2 * n
 	# Instantiate a gamma family model with the default link function.
 	#default is that alpha is 1
 	#nb_model = sm.GLM(y, X, family=sm.families.NegativeBinomial())
 	#nb_results = nb_model.fit()
 	
 	nb_model_2 = nb(y,X)
-	nb_results = nb_model_2.fit()
+	nb_results = nb_model_2.fit(maxiter=100)
 	
 	# Inspect the results
 	print nb_results.summary()
@@ -149,7 +150,7 @@ def test_neg_bin_2():
 	
 	llh = 0.0
 	llh2 = 0
-	for i in range(0,2000):
+	for i in range(0,(2 * n)):
 		b = X[i]
 		y_val = y[i]
 		#last param is alpha
@@ -181,4 +182,132 @@ def test_neg_bin_eq():
 	p = r / np.float(r + mean)
 	np.testing.assert_almost_equal(nbinom.pmf(k,r,p), np.exp(l_p_nb(k,r,mean)))
 	
+
+
+def test_neg_bin_4():
+	"""
+	simple regression test
+	X ~ bernoulli(0.5)
+	y ~ nb(mean = 2 + 2X, dispersion = 0.2)
+	"""
+	print "test neg binom 4"
+
+	#1/dispersion parameter
+	r = 2.0
+	mean = 100
+	#var = mean + 1/r * (mean ** 2)
+	#p1 = r / np.float(r + mean)
+
+	#mean_ex, var_ex = nbinom.stats(r, p1, moments='mv')
+	#print mean
+	#print mean_ex
+	#print var
+	#print var_ex
+
+	n = 500
+	#s1 = nbinom.rvs(r,p1,size=1000)
+	s1 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=n)
+	print np.mean(s1)
+	print np.var(s1)
+
+	#assume same 1/dispersion but shift mean by 2
+	mean = 1000
+	#var = mean + 1/r * (mean ** 2)
+	#p2 = r / np.float(r + mean)
+
+	s2 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=n)
+	print np.mean(s2)
+	print np.var(s2)
+
+	#print s2
+
+	y = []
+	y.extend(s1)
+	y.extend(s2)
+
+	x = []
+	x.extend(np.zeros(n))
+	x.extend(np.ones(n))
+
+	#add intercept
+	X = []
+	for i in range(0,len(x)):
+		X.append([1,np.int(x[i])])
+
+	assert len(y) == 2 * n
+	assert len(x) == 2 * n
+	assert len(X) == 2 * n
+	# Instantiate a gamma family model with the default link function.
+	#default is that alpha is 1
+	#nb_model = sm.GLM(y, X, family=sm.families.NegativeBinomial())
+	#nb_results = nb_model.fit()
+
+	nb_model_2 = sm.GLM(y, X, family=sm.families.NegativeBinomial())
+	nb_results = nb_model_2.fit()
+	# Inspect the results
+	print nb_results.summary()
 	
+	alpha = nb_results.scale
+	
+	while(abs(nb_results.scale - 1) > 0.001):
+		nb_model_2 = sm.GLM(y, X, family=sm.families.NegativeBinomial(alpha=alpha))
+		nb_results = nb_model_2.fit()
+		# Inspect the results
+		print nb_results.summary()
+		alpha = alpha * nb_results.scale
+	
+
+	print nb_results.params
+	print 1/alpha
+	
+	
+def test_neg_bin_5():
+
+	print "test neg binom 5"
+
+	#1/dispersion parameter
+	r = 0.01
+	mean = 100
+
+	n = 500
+	#s1 = nbinom.rvs(r,p1,size=1000)
+	s1 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=n)
+	print np.mean(s1)
+	print np.var(s1)
+
+	#assume same 1/dispersion but shift mean by 2
+	mean = 1000
+	#var = mean + 1/r * (mean ** 2)
+	#p2 = r / np.float(r + mean)
+
+	s2 = helpers.r_neg_binom(alpha=1/r,mean=mean,num=n)
+	print np.mean(s2)
+	print np.var(s2)
+
+	#print s2
+
+	y = []
+	y.extend(s1)
+	y.extend(s2)
+
+	x = []
+	x.extend(np.zeros(n))
+	x.extend(np.ones(n))
+
+	#add intercept
+	X = []
+	for i in range(0,len(x)):
+		X.append([1,np.int(x[i])])
+
+
+	assert len(y) == 2 * n
+	assert len(x) == 2 * n
+	assert len(X) == 2 * n
+	
+	res = helpers.fit_neg_binom(y,X)
+	
+	print res["params"]
+	print res["alpha"]
+	print res["iter"]
+	
+	print res["results"].summary()

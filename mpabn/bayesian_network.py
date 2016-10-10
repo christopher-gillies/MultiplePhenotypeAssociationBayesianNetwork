@@ -51,6 +51,7 @@ from helpers import sigmoid
 from helpers import logistic
 from helpers import p_neg_binom
 from helpers import r_neg_binom
+from helpers import fit_neg_binom
 import sklearn.linear_model as model
 from scipy.stats import bernoulli
 
@@ -837,7 +838,7 @@ class NegativeBinomialNode(_Node):
 		alpha is the dispersion parameter
 		"""
 		assert params is not None
-		assert std_dev is not None
+		assert alpha is not None
 				
 		assert type(params) is list
 		assert len(params) == len(self.parents) + 1
@@ -885,7 +886,7 @@ class NegativeBinomialNode(_Node):
 		#mean
 		linear_comb = np.inner(self.params,vals)
 		mean = np.exp(linear_comb)
-		x = helpers.r_neg_binom(alpha=self.alpha,mean=mean,num=1)
+		x = r_neg_binom(alpha=self.alpha,mean=mean,num=1)
 		return x
 		
 		
@@ -896,30 +897,46 @@ class NegativeBinomialNode(_Node):
 			assert par.name in data.columns
 			parent_names.append(par.name)
 		#get columns of interest
+		#column order should match parental order
 		data_sub = data[parent_names].values
-		response = data[self.name].values
+		response = data[self.name].values.tolist()
 
 		if len(self.parents) > 0:
 			#fit neg binomial model
-			nb_model = nb_glm(y,X)
-			nb_results = nb_model.fit()
+			
+			X = [ ]
+			y = [ ]
+			
+			for i in range(0,len(response)):
+				x = data_sub[i]
+				x_temp = [1]
+				x_temp.extend(x)
+				yval = np.int(response[i])
+				X.append(x_temp)
+				y.append(yval)
+				print y[i]
+				print X[i]
+				
+			
+			print len(y)
+			print len(X)	
+			res = fit_neg_binom(y,X)
 
 			params = []
-			params.extend(nb_results.params[:-1])
-			alpha = np.float(nb_results.params[-1])
+			params.extend(res["params"])
+			alpha = np.float(res["alpha"])
 			NegativeBinomialNode.set_params(self,params,alpha)
 		else:
 			X = [ ]
 			y = [ ]
-			for v in response.tolist():
+			for v in response:
 				X.append([1])
 				y.append(v)
 			
 			#fit neg binomial model
-			nb_model = nb_glm(y,X)
-			nb_results = nb_model.fit()
+			res = fit_neg_binom(y,X)
 
 			params = []
-			params.extend(nb_results.params[:-1])
-			alpha = np.float(nb_results.params[-1])
+			params.extend(res["params"])
+			alpha = np.float(res["alpha"])
 			NegativeBinomialNode.set_params(self,params,alpha)

@@ -11,6 +11,9 @@ np.random.seed(0)
 """
 py.test -s tests/test_normal.py 
 """
+
+
+
 def test_prob():
 	
 	node = bn.LinearGaussianNode("X1")
